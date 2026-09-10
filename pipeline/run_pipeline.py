@@ -57,7 +57,7 @@ def write_register(rows, out):
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment
     wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Risk Register (DEMO)"
-    ws["A1"] = "DEMONSTRATION ONLY - SYNTHETIC DATA - NOT A REGULATORY DOCUMENT"
+    ws["A1"] = "DEMONSTRATION - SAMPLE-APP SECURITY SCAN - NOT A REGULATORY DOCUMENT"
     ws["A1"].font = Font(bold=True, color="B23B33", size=12); ws.merge_cells("A1:H1")
     ws.append([]); hdr = ["Risk ID", "Category", "CWE / CVE", "Severity", "Observed value", "Likelihood", "Score", "Band / BRA"]
     ws.append(hdr)

@@ -1,7 +1,11 @@
 name: security-pipeline-demo
 
-# Demonstration pipeline with SYNTHETIC data only. No real product or findings.
-# Flow: SSH compliance test (throwaway container) -> scan/ledger -> register -> verify.
+# Demonstration pipeline. Runs a REAL SAST scan (Bandit) on the intentionally-vulnerable
+# sample_app/, plus an SSH compliance test against a throwaway container, then builds a
+# risk register and uploads the evidence. Sample code only — not a real product.
+#
+# To activate: move this file to .github/workflows/security-pipeline.yml
+# (requires the pushing token to have the "Workflows" permission).
 
 on:
   push:
@@ -23,26 +27,33 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install deps
-        run: pip install openpyxl
+      - name: Install scanners + deps
+        run: pip install openpyxl bandit
+
+      - name: SAST scan (Bandit) on the sample application
+        run: |
+          python -m bandit -r sample_app -f json -o bandit.json -q || true
+          python pipeline/normalize_bandit.py bandit.json > pipeline/scan_findings.json
+          echo "Findings:"; python -c "import json;print(len(json.load(open('pipeline/scan_findings.json'))))"
 
       - name: SSH compliance test (ephemeral key + throwaway container)
         run: |
           chmod +x scripts/ssh_compliance_test.sh
           scripts/ssh_compliance_test.sh "$GITHUB_WORKSPACE"
 
-      - name: Run pipeline (scan -> ledger -> register -> verify)
+      - name: Pipeline — scan results -> ledger -> register -> verify
         run: |
           python pipeline/run_pipeline.py \
-            --findings pipeline/sample_findings.json \
+            --findings pipeline/scan_findings.json \
             --host-results "$GITHUB_WORKSPACE/host_results.json" \
             --out-dir "$GITHUB_WORKSPACE"
 
-      - name: Upload evidence artifacts
+      - name: Upload evidence (ledger + register + raw scan)
         uses: actions/upload-artifact@v4
         with:
           name: pipeline-evidence
           path: |
             ledger.jsonl
             register.xlsx
+            bandit.json
             host_results.json

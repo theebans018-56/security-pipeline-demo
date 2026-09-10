@@ -32,3 +32,16 @@ Push to `main` (or use *Run workflow*). The Actions run performs the SSH complia
 throwaway container, then builds the register and uploads the evidence artifacts.
 
 All data here is synthetic (`CVE-2099-xxxx`, `sample-*` packages). Nothing is confidential.
+
+## Real scan example
+
+The repo includes `sample_app/` — a deliberately vulnerable Python file — and runs a
+**real Bandit SAST scan** against it. Try it:
+```bash
+pip install bandit openpyxl
+python -m bandit -r sample_app -f json -o bandit.json -q
+python pipeline/normalize_bandit.py bandit.json > pipeline/scan_findings.json
+python pipeline/run_pipeline.py --findings pipeline/scan_findings.json
+```
+Bandit finds real issues (command injection, SQL injection, weak MD5, hardcoded password),
+which flow into `register.xlsx` with CWE + risk score + BRA flag.
