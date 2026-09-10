@@ -1,9 +1,9 @@
 name: security-pipeline-demo
 
-# Demonstration pipeline. Runs a REAL SAST scan (Bandit) on the intentionally-vulnerable
-# sample_app/, plus an SSH compliance test against a throwaway container, fills the register
-# TEMPLATE, saves the generated register + ledger under output/ and commits them back to the
-# repo, and uploads them as artifacts. Sample code only — not a real product.
+# Demonstration pipeline (synthetic/sample data only — not a real product).
+# Builds the FULL document set from one scan, in dependency order:
+#   reports (SCA/SAST/DAST/FUZZ/ASA/SRT/TMT) -> risk register -> traceability (last),
+# saves them under output/docs and commits them back to the repo.
 
 on:
   push:
@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # needed to commit the generated register back into the repo
+  contents: write
 
 jobs:
   pipeline:
@@ -28,11 +28,11 @@ jobs:
       - name: Install scanners + deps
         run: pip install openpyxl bandit
 
-      - name: SAST scan (Bandit) on the sample application
+      - name: SAST scan (Bandit) + combine findings (SAST + synthetic SCA/DAST/FUZZ/ASA)
         run: |
           python -m bandit -r sample_app -f json -o bandit.json -q || true
-          python pipeline/normalize_bandit.py bandit.json > pipeline/scan_findings.json
-          echo "Findings:"; python -c "import json;print(len(json.load(open('pipeline/scan_findings.json'))))"
+          python pipeline/normalize_bandit.py bandit.json > sast_findings.json
+          python -c "import json;a=json.load(open('sast_findings.json'));b=json.load(open('pipeline/sample_findings.json'));json.dump(a+b,open('all_findings.json','w'),indent=1);print('combined findings:',len(a+b))"
 
       - name: SRT / TMT compliance tests (recipe suite)
         run: |
@@ -44,32 +44,36 @@ jobs:
           chmod +x scripts/ssh_compliance_test.sh
           scripts/ssh_compliance_test.sh "$GITHUB_WORKSPACE"
 
-      - name: Pipeline — scan + SRT/TMT -> fill template -> output/register.xlsx, verify
+      - name: Pipeline — scan + SRT/TMT -> ledger -> verify
         run: |
           python pipeline/run_pipeline.py \
-            --findings pipeline/scan_findings.json \
+            --findings all_findings.json \
             --host-results "$GITHUB_WORKSPACE/host_results.json" \
             --compliance "$GITHUB_WORKSPACE/compliance_results.json" \
             --out-dir "$GITHUB_WORKSPACE"
 
-      - name: Commit generated register back to the repo
+      - name: DOCUMENTS — build each report, then register, then traceability (LAST)
+        run: |
+          python pipeline/build_docs.py --ledger output/ledger.jsonl --out-dir output/docs
+
+      - name: Commit generated document set back to the repo
         run: |
           git config user.name "secops-bot"
           git config user.email "secops-bot@users.noreply.github.com"
-          git add output/register.xlsx output/ledger.jsonl pipeline/scan_findings.json
+          git add output/
           if git diff --cached --quiet; then
             echo "no changes to commit"
           else
-            git commit -m "Update risk register from pipeline run [skip ci]"
+            git commit -m "Update document set from pipeline run [skip ci]"
             git push
           fi
 
-      - name: Upload evidence (register + ledger + raw scan)
+      - name: Upload document set + evidence
         uses: actions/upload-artifact@v4
         with:
-          name: pipeline-evidence
+          name: document-set
           path: |
-            output/register.xlsx
+            output/docs/*.xlsx
             output/ledger.jsonl
             bandit.json
             compliance_results.json

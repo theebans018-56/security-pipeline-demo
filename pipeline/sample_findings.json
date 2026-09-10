@@ -1,14 +1,23 @@
 [
-  { "type": "SCA", "tool": "grype", "cve": "CVE-2099-0001", "cwe": "CWE-125",
+  { "type": "SCA", "tool": "grype", "cve": "CVE-2099-0101", "cwe": "CWE-125",
     "severity": "High", "location": "backend/requirements.txt",
-    "summary": "sample-imagelib 1.2.0 has an out-of-bounds read" },
-  { "type": "SCA", "tool": "grype", "cve": "CVE-2099-0002", "cwe": "CWE-79",
+    "summary": "sample-imagelib 1.2.0 out-of-bounds read" },
+  { "type": "SCA", "tool": "grype", "cve": "CVE-2099-0102", "cwe": "CWE-400",
     "severity": "Medium", "location": "frontend/package-lock.json",
-    "summary": "sample-webframework 3.0.1 reflected XSS" },
-  { "type": "SAST", "tool": "semgrep", "cve": "", "cwe": "CWE-89",
-    "severity": "High", "location": "backend/app/db.py:42",
-    "summary": "string-built SQL identifier in sample query builder" },
+    "summary": "sample-webframework 3.0.1 uncontrolled resource consumption" },
+
   { "type": "DAST", "tool": "zap", "cve": "", "cwe": "CWE-639",
     "severity": "Critical", "location": "GET /api/items/{id}",
-    "summary": "object-level authorization not enforced on sample endpoint" }
+    "summary": "object-level authorization not enforced (IDOR) on sample endpoint" },
+  { "type": "DAST", "tool": "zap", "cve": "", "cwe": "CWE-306",
+    "severity": "Medium", "location": "WS /realtime",
+    "summary": "websocket endpoint reachable without authentication" },
+
+  { "type": "FUZZ", "tool": "schemathesis", "cve": "", "cwe": "CWE-20",
+    "severity": "Low", "location": "POST /api/items (quantity)",
+    "summary": "out-of-range integer causes unhandled HTTP 500" },
+
+  { "type": "ASA", "tool": "nmap", "cve": "", "cwe": "CWE-200",
+    "severity": "Medium", "location": "tcp/8443 admin console",
+    "summary": "management console reachable from the application network" }
 ]
