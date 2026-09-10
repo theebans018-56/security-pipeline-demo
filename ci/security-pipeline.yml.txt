@@ -1,0 +1,48 @@
+name: security-pipeline-demo
+
+# Demonstration pipeline with SYNTHETIC data only. No real product or findings.
+# Flow: SSH compliance test (throwaway container) -> scan/ledger -> register -> verify.
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: pip install openpyxl
+
+      - name: SSH compliance test (ephemeral key + throwaway container)
+        run: |
+          chmod +x scripts/ssh_compliance_test.sh
+          scripts/ssh_compliance_test.sh "$GITHUB_WORKSPACE"
+
+      - name: Run pipeline (scan -> ledger -> register -> verify)
+        run: |
+          python pipeline/run_pipeline.py \
+            --findings pipeline/sample_findings.json \
+            --host-results "$GITHUB_WORKSPACE/host_results.json" \
+            --out-dir "$GITHUB_WORKSPACE"
+
+      - name: Upload evidence artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-evidence
+          path: |
+            ledger.jsonl
+            register.xlsx
+            host_results.json

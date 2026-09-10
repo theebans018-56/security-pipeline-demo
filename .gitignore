@@ -1,0 +1,10 @@
+# never commit keys, tokens, or generated artifacts
+id_demo
+id_demo.pub
+*.pem
+*token*
+.env
+ledger.jsonl
+register.xlsx
+host_results.json
+__pycache__/
