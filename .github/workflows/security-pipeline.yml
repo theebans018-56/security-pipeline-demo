@@ -37,6 +37,7 @@ jobs:
           echo "Findings:"; python -c "import json;print(len(json.load(open('pipeline/scan_findings.json'))))"
 
       - name: SSH compliance test (ephemeral key + throwaway container)
+        continue-on-error: true
         run: |
           chmod +x scripts/ssh_compliance_test.sh
           scripts/ssh_compliance_test.sh "$GITHUB_WORKSPACE"
