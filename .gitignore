@@ -13,3 +13,4 @@ pipeline/ledger.jsonl
 pipeline/register.xlsx
 /ledger.jsonl
 /register.xlsx
+compliance_results.json

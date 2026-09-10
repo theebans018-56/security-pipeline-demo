@@ -1,0 +1,21 @@
+[
+  { "id": "SRT-001", "category": "SRT", "title": "TLS library is TLS 1.2 capable",
+    "command": "openssl version", "expect": {"op": "regex", "value": "OpenSSL [1-9]"},
+    "cwe": "CWE-327", "severity": "Medium" },
+
+  { "id": "SRT-002", "category": "SRT", "title": "Disk-encryption tooling (cryptsetup) present",
+    "command": "command -v cryptsetup || echo missing", "expect": {"op": "not_contains", "value": "missing"},
+    "cwe": "CWE-311", "severity": "High" },
+
+  { "id": "SRT-003", "category": "SRT", "title": "No world-writable files in /tmp top level",
+    "command": "find /tmp -maxdepth 1 -type f -perm -0002 2>/dev/null | wc -l", "expect": {"op": "equals", "value": "0"},
+    "cwe": "CWE-732", "severity": "Medium" },
+
+  { "id": "TMT-001", "category": "TMT", "title": "Pre-boot unlock tooling (clevis/TPM) present",
+    "command": "command -v clevis || echo missing", "expect": {"op": "not_contains", "value": "missing"},
+    "cwe": "CWE-311", "severity": "High" },
+
+  { "id": "TMT-002", "category": "TMT", "title": "Audit daemon tooling present",
+    "command": "command -v auditctl || echo missing", "expect": {"op": "not_contains", "value": "missing"},
+    "cwe": "CWE-778", "severity": "Medium" }
+]

@@ -31,11 +31,13 @@ def build_ledger(findings, host_results):
             "human": {}, "evidence": {"tool": f.get("tool", "scanner"), "ts": now()}}
         )
     for j, h in enumerate(host_results, start=1):
+        cat = h.get("category", "COMPLIANCE")           # SRT / TMT / COMPLIANCE
+        tid = h.get("test_id", f"CTRL-{j:04d}")
         rows.append({
-            "id": f"CTRL-{j:04d}", "category": "COMPLIANCE",
+            "id": tid, "category": cat,
             "scanner": {"cwe": h.get("cwe", ""), "cve": "", "severity": h.get("severity", "Medium"),
                         "location": h.get("command", ""), "observed": h.get("observed", ""), "verdict": h.get("verdict", "PASS")},
-            "human": {}, "evidence": {"test_id": h.get("test_id", ""), "host": h.get("host", ""), "ts": now()}}
+            "human": {}, "evidence": {"test_id": tid, "title": h.get("title", ""), "host": h.get("host", ""), "ts": now()}}
         )
     return rows
 
@@ -43,13 +45,17 @@ def build_ledger(findings, host_results):
 def triage(rows):
     for r in rows:
         s = r["scanner"]; sev = SEV.get(s["severity"], 3)
+        if s["verdict"] == "PASS":                       # a control that PASSED is verified, not a risk
+            r["human"] = {"likelihood": "-", "score": 0, "band": "Verified", "bra": "N/A",
+                          "disposition": "Verified - control effective", "note": "SRT/TMT PASS"}
+            continue
         lik = 3 if s["verdict"] in ("OPEN", "FAIL") else 2
         score = sev * lik
         band = "Low" if score <= 6 else "Moderate" if score <= 12 else "High"
         r["human"] = {"likelihood": {4: "High", 3: "Medium", 2: "Low"}[lik], "score": score,
                       "band": band, "bra": "Applicable" if 7 <= score <= 12 else "N/A",
                       "disposition": "Acceptable (BRA)" if 7 <= score <= 12 else "Acceptable",
-                      "note": "SYNTHETIC demo finding"}
+                      "note": "failed control re-opened as risk" if s["verdict"] == "FAIL" else "open finding"}
     return rows
 
 
@@ -78,9 +84,10 @@ def write_register(rows, out):
             key = str(dd.cell(r, 1).value or "")
             if key == "Revision No.": dd.cell(r, 2, "01")
             if key == "Effective Date": dd.cell(r, 2, now()[:10])
-    # append finding rows starting after the header (row 2)
+    # append RISK rows starting after the header (row 2). Passed controls are verified, not risks.
     start = 3
-    for i, r in enumerate(rows):
+    risks = [r for r in rows if r["human"]["band"] != "Verified"]
+    for i, r in enumerate(risks):
         s, h = r["scanner"], r["human"]
         ev = r.get("evidence", {})
         vals = [r["id"], r["category"], str(s["observed"])[:80], s.get("location", ""), s["cve"] or s["cwe"],
@@ -104,6 +111,7 @@ def verify(rows):
         h = r["human"]
         if h["band"] == "Moderate" and h["bra"] != "Applicable": problems.append(f"{r['id']}: Moderate without BRA")
         if h["band"] == "Low" and h["bra"] == "Applicable": problems.append(f"{r['id']}: Low marked BRA")
+        if h["band"] == "Verified" and r["scanner"]["verdict"] != "PASS": problems.append(f"{r['id']}: Verified but not PASS")
     return problems
 
 
@@ -114,11 +122,14 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--findings", default=os.path.join(HERE, "sample_findings.json"))
     ap.add_argument("--host-results", default=os.path.join(HERE, "..", "host_results.json"))
+    ap.add_argument("--compliance", default=os.path.join(HERE, "..", "compliance_results.json"),
+                    help="SRT/TMT results JSON from run_compliance.py")
     ap.add_argument("--out-dir", default=HERE)
     a = ap.parse_args()
     print("=== SECURITY COMPLIANCE PIPELINE (demo, synthetic data) ===\n")
     out = os.path.join(a.out_dir, "output"); os.makedirs(out, exist_ok=True)
-    rows = triage(build_ledger(load_findings(a.findings), load_host_results(a.host_results)))
+    controls = load_host_results(a.host_results) + load_host_results(a.compliance)
+    rows = triage(build_ledger(load_findings(a.findings), controls))
     led = os.path.join(out, "ledger.jsonl")
     with open(led, "w", encoding="utf-8") as f:
         for r in rows: f.write(json.dumps(r) + "\n")
@@ -128,8 +139,16 @@ if __name__ == "__main__":
         print(f"      {r['id']:<10} {r['category']:<11} {s['verdict']:<5} sev={s['severity']:<8} score={h['score']:<3} {h['band']:<9} BRA={h['bra']}")
     reg = os.path.join(out, "register.xlsx"); write_register(rows, reg)
     print(f"\n[3-4] triage + document -> output/register.xlsx (filled from templates/risk_register_template.xlsx)")
+    # SRT/TMT verification summary
+    for cat in ("SRT", "TMT"):
+        cr = [r for r in rows if r["category"] == cat]
+        if cr:
+            p = sum(1 for r in cr if r["scanner"]["verdict"] == "PASS")
+            print(f"      {cat}: {p} PASS / {len(cr)-p} FAIL  (failed controls become register risks)")
     problems = verify(rows)
-    print("[5]   verify -> " + ("PASS" if not problems else "ISSUES: " + "; ".join(problems)))
+    print("\n[5]   verify -> " + ("PASS" if not problems else "ISSUES: " + "; ".join(problems)))
     if problems: raise SystemExit(1)
-    bra = [r["id"] for r in rows if r["human"]["bra"] == "Applicable"]
-    print(f"\nRESULT: {len(rows)} findings, {len(bra)} to BRA ({', '.join(bra) or 'none'}). Synthetic only.")
+    risks = [r for r in rows if r["human"]["band"] != "Verified"]
+    bra = [r["id"] for r in risks if r["human"]["bra"] == "Applicable"]
+    print(f"\nRESULT: {len(rows)} results ({len(risks)} risks in register, {len(rows)-len(risks)} verified), "
+          f"{len(bra)} to BRA ({', '.join(bra) or 'none'}). Synthetic only.")

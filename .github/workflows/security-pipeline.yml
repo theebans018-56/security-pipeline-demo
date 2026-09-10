@@ -34,17 +34,22 @@ jobs:
           python pipeline/normalize_bandit.py bandit.json > pipeline/scan_findings.json
           echo "Findings:"; python -c "import json;print(len(json.load(open('pipeline/scan_findings.json'))))"
 
+      - name: SRT / TMT compliance tests (recipe suite)
+        run: |
+          python pipeline/run_compliance.py --out "$GITHUB_WORKSPACE/compliance_results.json"
+
       - name: SSH compliance test (ephemeral key + throwaway container)
         continue-on-error: true
         run: |
           chmod +x scripts/ssh_compliance_test.sh
           scripts/ssh_compliance_test.sh "$GITHUB_WORKSPACE"
 
-      - name: Pipeline — fill template -> output/register.xlsx + ledger, verify
+      - name: Pipeline — scan + SRT/TMT -> fill template -> output/register.xlsx, verify
         run: |
           python pipeline/run_pipeline.py \
             --findings pipeline/scan_findings.json \
             --host-results "$GITHUB_WORKSPACE/host_results.json" \
+            --compliance "$GITHUB_WORKSPACE/compliance_results.json" \
             --out-dir "$GITHUB_WORKSPACE"
 
       - name: Commit generated register back to the repo
@@ -67,4 +72,5 @@ jobs:
             output/register.xlsx
             output/ledger.jsonl
             bandit.json
+            compliance_results.json
             host_results.json
