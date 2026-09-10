@@ -5,7 +5,7 @@
     "cve": "",
     "cwe": "CWE-78",
     "severity": "Low",
-    "location": "sample_app\\app.py:9",
+    "location": "sample_app/app.py:9",
     "summary": "B404 blacklist: Consider possible security implications associated with the subprocess module."
   },
   {
@@ -14,7 +14,7 @@
     "cve": "",
     "cwe": "CWE-259",
     "severity": "Low",
-    "location": "sample_app\\app.py:12",
+    "location": "sample_app/app.py:12",
     "summary": "B105 hardcoded_password_string: Possible hardcoded password: 'SuperSecret123!'"
   },
   {
@@ -23,7 +23,7 @@
     "cve": "",
     "cwe": "CWE-78",
     "severity": "High",
-    "location": "sample_app\\app.py:17",
+    "location": "sample_app/app.py:17",
     "summary": "B602 subprocess_popen_with_shell_equals_true: subprocess call with shell=True identified, security issue."
   },
   {
@@ -32,7 +32,7 @@
     "cve": "",
     "cwe": "CWE-89",
     "severity": "Medium",
-    "location": "sample_app\\app.py:23",
+    "location": "sample_app/app.py:23",
     "summary": "B608 hardcoded_sql_expressions: Possible SQL injection vector through string-based query construction."
   },
   {
@@ -41,7 +41,7 @@
     "cve": "",
     "cwe": "CWE-327",
     "severity": "High",
-    "location": "sample_app\\app.py:30",
+    "location": "sample_app/app.py:30",
     "summary": "B324 hashlib: Use of weak MD5 hash for security. Consider usedforsecurity=False"
   },
   {
@@ -50,7 +50,7 @@
     "cve": "",
     "cwe": "CWE-78",
     "severity": "Medium",
-    "location": "sample_app\\app.py:35",
+    "location": "sample_app/app.py:35",
     "summary": "B307 blacklist: Use of possibly insecure function - consider using safer ast.literal_eval."
   },
   {
@@ -59,7 +59,7 @@
     "cve": "",
     "cwe": "CWE-703",
     "severity": "Low",
-    "location": "sample_app\\app.py:40",
+    "location": "sample_app/app.py:40",
     "summary": "B101 assert_used: Use of assert detected. The enclosed code will be removed when compiling to optimised byte c"
   },
   {
@@ -68,7 +68,7 @@
     "cve": "",
     "cwe": "CWE-605",
     "severity": "Medium",
-    "location": "sample_app\\app.py:46",
+    "location": "sample_app/app.py:46",
     "summary": "B104 hardcoded_bind_all_interfaces: Possible binding to all interfaces."
   }
 ]
