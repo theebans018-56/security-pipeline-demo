@@ -1,0 +1,35 @@
+name: live-srt-tmt
+
+# Runs the SRT/TMT compliance recipes OVER SSH to a lab host, on a SELF-HOSTED runner
+# inside the lab network. Target is derived at runtime ($USERNAME@127.0.0.1) so no host
+# detail is stored in the repo. In production, point --ssh at the real test VM via a Secret.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: [self-hosted, lab]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: SRT / TMT recipes over SSH (self-hosted runner -> lab host)
+        run: |
+          TARGET="${USERNAME}@127.0.0.1"
+          echo "Running recipes over SSH to the lab host from this self-hosted runner"
+          python pipeline/run_compliance.py --ssh "$TARGET" --key "$HOME/.ssh/id_runner" --out compliance_results.json
+          echo "----- results -----"
+          cat compliance_results.json
+
+      - name: Upload SRT/TMT results
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-srt-tmt-results
+          path: compliance_results.json

@@ -17,16 +17,27 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 RECIPES = os.path.join(HERE, "..", "compliance", "recipes.json")
 
 
+NOISE = ("WARNING", "post-quantum", "store now", "decrypt later", "may need to be upgraded", "pq.html", "This session")
+
+
+def _clean(text):
+    return "\n".join(l for l in text.splitlines() if not any(n in l for n in NOISE)).strip()
+
+
 def run_cmd(cmd, ssh, key, port):
-    if ssh:
-        full = ["ssh", "-p", str(port), "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=5"]
-        if key: full += ["-i", key]
-        full += [ssh, cmd]
-    else:
-        full = ["bash", "-lc", cmd]
+    """Run a recipe command. Over SSH, feed the command to a remote bash via stdin
+    (`ssh host bash -s`) so quoting never breaks and it works even when the remote
+    default shell is not bash."""
     try:
-        out = subprocess.run(full, capture_output=True, text=True, timeout=30)
-        return (out.stdout + out.stderr).strip()
+        if ssh:
+            full = ["ssh", "-p", str(port), "-o", "StrictHostKeyChecking=no",
+                    "-o", "BatchMode=yes", "-o", "ConnectTimeout=8"]
+            if key: full += ["-i", key]
+            full += [ssh, "bash -s"]
+            out = subprocess.run(full, input=cmd, capture_output=True, text=True, timeout=30)
+        else:
+            out = subprocess.run(["bash", "-lc", cmd], capture_output=True, text=True, timeout=30)
+        return _clean(out.stdout + out.stderr)
     except Exception as e:
         return f"error: {e}"
 
