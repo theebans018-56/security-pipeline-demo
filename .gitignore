@@ -8,3 +8,8 @@ bandit.json
 host_results.json
 __pycache__/
 # NOTE: output/ (the generated register + ledger) IS committed by the pipeline
+
+pipeline/ledger.jsonl
+pipeline/register.xlsx
+/ledger.jsonl
+/register.xlsx
