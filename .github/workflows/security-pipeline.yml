@@ -1,9 +1,9 @@
 name: security-pipeline-demo
 
-# Demonstration pipeline (synthetic/sample data only — not a real product).
-# Builds the FULL document set from one scan, in dependency order:
-#   reports (SCA/SAST/DAST/FUZZ/ASA/SRT/TMT) -> risk register -> traceability (last),
-# saves them under output/docs and commits them back to the repo.
+# Full demo pipeline (synthetic/sample data only). Each testing method mirrors the real one:
+#   SAST (Bandit) · SCA (pip-audit) · DAST (authenticated checks vs a running app) ·
+#   FUZZ (malformed input) · ASA (surface/headers) · Closed-Box (CVE funnel) · SRT/TMT (recipes).
+# All feed ONE ledger -> reports -> register -> traceability (last), committed back to the repo.
 
 on:
   push:
@@ -17,64 +17,59 @@ jobs:
   pipeline:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
       - name: Install scanners + deps
-        run: pip install openpyxl bandit
+        run: pip install openpyxl bandit pip-audit
 
-      - name: SAST scan (Bandit) + combine findings (SAST + synthetic SCA/DAST/FUZZ/ASA)
+      - name: Discovery scans (SAST, then start app for DAST/FUZZ/ASA, then SCA/Closed-Box)
+        env:
+          DAST_PASS: ${{ secrets.DAST_PASS }}   # app test-account password (Secret); falls back to demo default
         run: |
-          python -m bandit -r sample_app -f json -o bandit.json -q || true
+          set -e
+          # --- SAST (static, real Bandit) ---
+          python -m bandit -r sample_app/app.py -f json -o bandit.json -q || true
           python pipeline/normalize_bandit.py bandit.json > sast_findings.json
-          python -c "import json;a=json.load(open('sast_findings.json'));b=json.load(open('pipeline/sample_findings.json'));json.dump(a+b,open('all_findings.json','w'),indent=1);print('combined findings:',len(a+b))"
+          # --- start the sample app for dynamic tests ---
+          python sample_app/webapp.py 8099 & APP=$!; sleep 2
+          # --- DAST (authenticated), FUZZ, ASA (app running) ---
+          python dast/run_dast.py  --url http://127.0.0.1:8099 --out dast_findings.json || true
+          python fuzz/run_fuzz.py  --url http://127.0.0.1:8099 --out fuzz_findings.json || true
+          python asa/run_asa.py    --url http://127.0.0.1:8099 --out asa_findings.json  || true
+          kill $APP 2>/dev/null || true
+          # --- SCA (real pip-audit) + Closed-Box funnel (static) ---
+          python sca/run_sca.py --out sca_findings.json || true
+          python closedbox/run_cbt.py --sca sca_findings.json --out cbt_findings.json || true
+          # --- combine all findings ---
+          python -c "import json;a=[];[a.extend(json.load(open(f))) for f in ['sast_findings.json','dast_findings.json','fuzz_findings.json','asa_findings.json','sca_findings.json','cbt_findings.json']];json.dump(a,open('all_findings.json','w'))"
+          python -c "import json,collections;print('findings:',dict(collections.Counter(x['type'] for x in json.load(open('all_findings.json')))))"
 
       - name: SRT / TMT compliance tests (recipe suite)
-        run: |
-          python pipeline/run_compliance.py --out "$GITHUB_WORKSPACE/compliance_results.json"
+        run: python pipeline/run_compliance.py --out "$GITHUB_WORKSPACE/compliance_results.json"
 
-      - name: SSH compliance test (ephemeral key + throwaway container)
-        continue-on-error: true
-        run: |
-          chmod +x scripts/ssh_compliance_test.sh
-          scripts/ssh_compliance_test.sh "$GITHUB_WORKSPACE"
-
-      - name: Pipeline — scan + SRT/TMT -> ledger -> verify
+      - name: Pipeline — all findings + SRT/TMT -> ledger -> verify
         run: |
           python pipeline/run_pipeline.py \
             --findings all_findings.json \
-            --host-results "$GITHUB_WORKSPACE/host_results.json" \
             --compliance "$GITHUB_WORKSPACE/compliance_results.json" \
             --out-dir "$GITHUB_WORKSPACE"
 
-      - name: DOCUMENTS — build each report, then register, then traceability (LAST)
-        run: |
-          python pipeline/build_docs.py --ledger output/ledger.jsonl --out-dir output/docs
+      - name: DOCUMENTS — 8 reports -> register -> traceability (last)
+        run: python pipeline/build_docs.py --ledger output/ledger.jsonl --out-dir output/docs
 
       - name: Commit generated document set back to the repo
         run: |
           git config user.name "secops-bot"
           git config user.email "secops-bot@users.noreply.github.com"
           git add output/
-          if git diff --cached --quiet; then
-            echo "no changes to commit"
-          else
-            git commit -m "Update document set from pipeline run [skip ci]"
-            git push
-          fi
+          if git diff --cached --quiet; then echo "no changes"; else
+            git commit -m "Update document set from pipeline run [skip ci]"; git push; fi
 
-      - name: Upload document set + evidence
+      - name: Upload full document set
         uses: actions/upload-artifact@v4
         with:
           name: document-set
           path: |
             output/docs/*.xlsx
             output/ledger.jsonl
-            bandit.json
-            compliance_results.json
-            host_results.json

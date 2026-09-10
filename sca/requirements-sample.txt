@@ -1,0 +1,5 @@
+# Sample dependency manifest for the SCA demo — deliberately pins OLD versions with known CVEs
+# so pip-audit has real findings to report. Not installed; scanned only.
+jinja2==2.11.2
+pyyaml==5.3
+requests==2.19.0

@@ -14,3 +14,8 @@ pipeline/register.xlsx
 /ledger.jsonl
 /register.xlsx
 compliance_results.json
+dast_findings.json
+fuzz_findings.json
+asa_findings.json
+sca_findings.json
+cbt_findings.json

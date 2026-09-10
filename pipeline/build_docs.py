@@ -22,12 +22,13 @@ REPORTS = [
     ("DAST", "DOC_069", "DAST Security Testing Report"),
     ("FUZZ", "DOC_066", "Fuzz Testing Report"),
     ("ASA",  "DOC_067", "Attack Surface Analysis Report"),
+    ("CBT",  "DOC_070", "Closed-Box Known-Vulnerability Report"),
     ("SRT",  "DOC_036", "Security Requirement Testing Results"),
     ("TMT",  "DOC_035", "Threat Mitigation Testing Results"),
 ]
 # synthetic per-category prefix for the risk id in the register/traceability
 PREFIX = {"SCA": "SRSK-VT", "SAST": "SRSK-SAST", "DAST": "SRSK-DAST", "FUZZ": "SRSK-FUZZ",
-          "ASA": "SRSK-ASA", "SRT": "SRSK-CT", "TMT": "SRSK-CT"}
+          "ASA": "SRSK-ASA", "CBT": "SRSK-CBT", "SRT": "SRSK-CT", "TMT": "SRSK-CT"}
 
 
 def load_ledger(path):
