@@ -1,11 +1,9 @@
 name: security-pipeline-demo
 
 # Demonstration pipeline. Runs a REAL SAST scan (Bandit) on the intentionally-vulnerable
-# sample_app/, plus an SSH compliance test against a throwaway container, then builds a
-# risk register and uploads the evidence. Sample code only — not a real product.
-#
-# To activate: move this file to .github/workflows/security-pipeline.yml
-# (requires the pushing token to have the "Workflows" permission).
+# sample_app/, plus an SSH compliance test against a throwaway container, fills the register
+# TEMPLATE, saves the generated register + ledger under output/ and commits them back to the
+# repo, and uploads them as artifacts. Sample code only — not a real product.
 
 on:
   push:
@@ -13,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write   # needed to commit the generated register back into the repo
 
 jobs:
   pipeline:
@@ -42,19 +40,31 @@ jobs:
           chmod +x scripts/ssh_compliance_test.sh
           scripts/ssh_compliance_test.sh "$GITHUB_WORKSPACE"
 
-      - name: Pipeline — scan results -> ledger -> register -> verify
+      - name: Pipeline — fill template -> output/register.xlsx + ledger, verify
         run: |
           python pipeline/run_pipeline.py \
             --findings pipeline/scan_findings.json \
             --host-results "$GITHUB_WORKSPACE/host_results.json" \
             --out-dir "$GITHUB_WORKSPACE"
 
-      - name: Upload evidence (ledger + register + raw scan)
+      - name: Commit generated register back to the repo
+        run: |
+          git config user.name "secops-bot"
+          git config user.email "secops-bot@users.noreply.github.com"
+          git add output/register.xlsx output/ledger.jsonl pipeline/scan_findings.json
+          if git diff --cached --quiet; then
+            echo "no changes to commit"
+          else
+            git commit -m "Update risk register from pipeline run [skip ci]"
+            git push
+          fi
+
+      - name: Upload evidence (register + ledger + raw scan)
         uses: actions/upload-artifact@v4
         with:
           name: pipeline-evidence
           path: |
-            ledger.jsonl
-            register.xlsx
+            output/register.xlsx
+            output/ledger.jsonl
             bandit.json
             host_results.json

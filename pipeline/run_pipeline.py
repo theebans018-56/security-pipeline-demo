@@ -53,23 +53,46 @@ def triage(rows):
     return rows
 
 
+TEMPLATE = os.path.join(HERE, "..", "templates", "risk_register_template.xlsx")
+FILL = {"Moderate": "F6EBD6", "High": "F5E0DD"}
+
+
 def write_register(rows, out):
+    """Load the register TEMPLATE and populate the 'Risk Register' sheet, preserving its
+    Document Details header and column formatting. Also stamps the revision/date."""
     import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment
-    wb = openpyxl.Workbook(); ws = wb.active; ws.title = "Risk Register (DEMO)"
-    ws["A1"] = "DEMONSTRATION - SAMPLE-APP SECURITY SCAN - NOT A REGULATORY DOCUMENT"
-    ws["A1"].font = Font(bold=True, color="B23B33", size=12); ws.merge_cells("A1:H1")
-    ws.append([]); hdr = ["Risk ID", "Category", "CWE / CVE", "Severity", "Observed value", "Likelihood", "Score", "Band / BRA"]
-    ws.append(hdr)
-    for c in ws[ws.max_row]:
-        c.font = Font(bold=True, color="FFFFFF"); c.fill = PatternFill("solid", fgColor="0C8F9B"); c.alignment = Alignment(wrap_text=True)
-    for r in rows:
+    from openpyxl.styles import PatternFill, Alignment, Border, Side, Font
+    from copy import copy
+    thin = Side(style="thin", color="B9C5D2"); border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    if os.path.exists(TEMPLATE):
+        wb = openpyxl.load_workbook(TEMPLATE)
+    else:  # fallback: regenerate the template on the fly
+        import subprocess, sys
+        subprocess.run([sys.executable, os.path.join(HERE, "make_template.py")], check=True)
+        wb = openpyxl.load_workbook(TEMPLATE)
+    ws = wb["Risk Register"]
+    # stamp revision + date in Document Details
+    if "Document Details" in wb.sheetnames:
+        dd = wb["Document Details"]
+        for r in range(1, dd.max_row + 1):
+            key = str(dd.cell(r, 1).value or "")
+            if key == "Revision No.": dd.cell(r, 2, "01")
+            if key == "Effective Date": dd.cell(r, 2, now()[:10])
+    # append finding rows starting after the header (row 2)
+    start = 3
+    for i, r in enumerate(rows):
         s, h = r["scanner"], r["human"]
-        band = f"{h['band']} ({h['score']})" + (f" - {h['bra']}" if h["bra"] != "N/A" else "")
-        ws.append([r["id"], r["category"], s["cve"] or s["cwe"], s["severity"], str(s["observed"])[:60], h["likelihood"], h["score"], band])
-        if h["band"] == "Moderate":
-            ws.cell(ws.max_row, 8).fill = PatternFill("solid", fgColor="F6EBD6")
-    for col, w in zip("ABCDEFGH", (14, 12, 16, 10, 42, 12, 8, 22)): ws.column_dimensions[col].width = w
+        ev = r.get("evidence", {})
+        vals = [r["id"], r["category"], str(s["observed"])[:80], s.get("location", ""), s["cve"] or s["cwe"],
+                s["severity"], h["likelihood"], h["score"], f"{h['band']} ({h['score']})",
+                "Planned on-cycle fix; monitored under vulnerability management.", h["likelihood"],
+                h["band"], h["disposition"], h["bra"], ev.get("tool") or ev.get("test_id") or ""]
+        row = start + i
+        for c, v in enumerate(vals, start=1):
+            cell = ws.cell(row, c, v); cell.alignment = Alignment(wrap_text=True, vertical="top"); cell.border = border
+        if h["band"] in FILL:
+            ws.cell(row, 12).fill = PatternFill("solid", fgColor=FILL[h["band"]])
+            ws.cell(row, 14).fill = PatternFill("solid", fgColor=FILL[h["band"]])
     wb.save(out)
 
 
@@ -94,16 +117,17 @@ if __name__ == "__main__":
     ap.add_argument("--out-dir", default=HERE)
     a = ap.parse_args()
     print("=== SECURITY COMPLIANCE PIPELINE (demo, synthetic data) ===\n")
+    out = os.path.join(a.out_dir, "output"); os.makedirs(out, exist_ok=True)
     rows = triage(build_ledger(load_findings(a.findings), load_host_results(a.host_results)))
-    led = os.path.join(a.out_dir, "ledger.jsonl")
+    led = os.path.join(out, "ledger.jsonl")
     with open(led, "w", encoding="utf-8") as f:
         for r in rows: f.write(json.dumps(r) + "\n")
-    print(f"[1-2] scan + ledger  -> {len(rows)} findings -> ledger.jsonl")
+    print(f"[1-2] scan + ledger  -> {len(rows)} findings -> output/ledger.jsonl")
     for r in rows:
         s, h = r["scanner"], r["human"]
         print(f"      {r['id']:<10} {r['category']:<11} {s['verdict']:<5} sev={s['severity']:<8} score={h['score']:<3} {h['band']:<9} BRA={h['bra']}")
-    reg = os.path.join(a.out_dir, "register.xlsx"); write_register(rows, reg)
-    print(f"\n[3-4] triage + document -> register.xlsx")
+    reg = os.path.join(out, "register.xlsx"); write_register(rows, reg)
+    print(f"\n[3-4] triage + document -> output/register.xlsx (filled from templates/risk_register_template.xlsx)")
     problems = verify(rows)
     print("[5]   verify -> " + ("PASS" if not problems else "ISSUES: " + "; ".join(problems)))
     if problems: raise SystemExit(1)

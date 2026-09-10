@@ -1,10 +1,10 @@
-# never commit keys, tokens, or generated artifacts
+# never commit keys, tokens, or transient scan artifacts
 id_demo
 id_demo.pub
 *.pem
 *token*
 .env
-ledger.jsonl
-register.xlsx
+bandit.json
 host_results.json
 __pycache__/
+# NOTE: output/ (the generated register + ledger) IS committed by the pipeline
